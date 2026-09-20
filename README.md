@@ -7,10 +7,14 @@ until they freeze the search.
 
 Built for the Flexiple engineering challenge.
 
+**[Watch the walkthrough](https://drive.google.com/file/d/1wXWXPbBvIxF-dVNF9wnf8cwRzLYwc23S/view?usp=sharing)**
+for the full loop: one search from free text to frozen shortlist, a refinement round driven by
+recruiter feedback, and an LLM failure handled without losing the search.
+
 > **The LLM prompts live in [`src/prompts/`](src/prompts/)**: four plain-text files, no templating
 > layer, nothing generated at runtime. [`shared.ts`](src/prompts/shared.ts) holds the rules all three
-> calls inherit; the other three are one file per LLM call. There is a walkthrough of what each one
-> does and why in [Prompts](#prompts) below.
+> calls inherit; the other three are one file per LLM call. What each one does, and why, is in
+> [Prompts](#prompts) below.
 
 ---
 
