@@ -1,20 +1,21 @@
 # Sourcing Refinement Loop
 
-A recruiter describes a role in plain English. The app turns that into **objective filters** and a
-**subjective fit rubric**, applies the filters to a 48-profile talent pool, scores the survivors
-against the rubric, and then refines both from the recruiter's yes/no feedback, round after round,
-until they freeze the search.
+You type what kind of person you're hiring, in normal English. The app turns that into two things: a
+set of filters (skills, years, location, company type) and a rubric for the stuff you can't filter
+on, like how deep someone's experience actually goes. It runs the filters over 48 profiles, asks the
+model to score whoever survives against the rubric, and shows you the top few. You say which ones
+are right and which aren't. It adjusts the filters and the rubric, runs it again, and you keep going
+until you're happy. Then you freeze it.
 
 Built for the Flexiple engineering challenge.
 
 **[Watch the walkthrough](https://drive.google.com/file/d/1wXWXPbBvIxF-dVNF9wnf8cwRzLYwc23S/view?usp=sharing)**
-for the full loop: one search from free text to frozen shortlist, a refinement round driven by
-recruiter feedback, and an LLM failure handled without losing the search.
+for the whole thing: one search from typing to frozen shortlist, a round of feedback changing the
+results, and an LLM failure that doesn't break the app.
 
-> **The LLM prompts live in [`src/prompts/`](src/prompts/)**: four plain-text files, no templating
-> layer, nothing generated at runtime. [`shared.ts`](src/prompts/shared.ts) holds the rules all three
-> calls inherit; the other three are one file per LLM call. What each one does, and why, is in
-> [Prompts](#prompts) below.
+> **The prompts are in [`src/prompts/`](src/prompts/)**, four plain text files. No templating, nothing
+> built at runtime. [`shared.ts`](src/prompts/shared.ts) has the rules all three calls share, and the
+> other three are one file per call. More on them in [Prompts](#prompts) below.
 
 ---
 
@@ -26,62 +27,65 @@ cp .env.example .env.local     # then paste your key into it
 npm run dev                    # http://localhost:3000
 ```
 
-**Environment variable: `GEMINI_API_KEY`**. A free Google AI Studio key from
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey). Nothing else is required, and no
-key is committed.
+**The env variable is `GEMINI_API_KEY`.** You can get a free one from
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey). That's the only thing you need,
+and no key is committed anywhere.
 
-Two optional commands:
+Two more commands if you want them:
 
 ```bash
-npm test      # assertions for the deterministic filter engine, against the real dataset
-npm run smoke # one live call per failure mode, to prove the key and the retry layer work
+npm test      # checks the filter engine against the real 48 profiles
+npm run smoke # makes one real call per failure type, to check your key works
 ```
 
-### A note on the free tier
+### About the free tier
 
-The Gemini free tier meters **20 requests per model per day** (`GenerateRequestsPerDayPerProjectPerModel`).
-A search costs 2 calls and each refinement round costs 2 more.
+Google's free tier gives you **20 requests per model per day**. A search costs 2 calls, and every
+round of feedback costs 2 more.
 
-The quota is per model, so the app walks a chain of **eight** verified models on capacity errors,
-giving roughly 160 requests a day. It also remembers which models are exhausted: the first request
-after a model dies discovers it and moves on, and every later request goes straight to one that can
-answer, instead of re-walking the dead chain each time. Google's own `retryDelay` sets the cooldown,
-floored at a minute, because on a daily quota it sometimes reports two seconds.
+That limit is counted per model, which is handy, because it means you can just use a different one.
+So when a model runs out, the app moves to the next of eight I've checked work, which gets you to
+roughly 160 requests a day. It also remembers which models are done for the day, so only the first
+request after a model dies has to find out the hard way. Everything after that goes straight to one
+that still works.
 
-When every model really is spent, the app says so plainly and tells you roughly when it frees up,
-rather than offering a Try again that cannot work.
+Google tells you how long to wait before retrying, but on a daily limit it sometimes says two
+seconds, which isn't true. So I take its number but never go below a minute.
 
----
-
-## The loop
-
-1. **Interpret**. Free text becomes `{ filters, rubric }`, plus a plain-language readback of what
-   the model understood.
-2. **Filter**. Applied locally, in code, against `src/data/profiles.json`.
-3. **Score**. The model scores each surviving profile per rubric criterion, citing real fields.
-4. **Refine**. The recruiter reacts; the model diagnoses what to change and returns a diff with
-   reasons.
-5. **Freeze**. A read-only summary: final filters, final rubric, ranked shortlist, and every round
-   that got them there.
+If every model really is out, the app says so and tells you roughly when it'll work again, instead
+of showing you a "try again" button that can't possibly help.
 
 ---
 
-## Decisions
+## How it works
 
-### The LLM writes the filters. Code applies them.
+1. **Interpret.** Your text becomes filters and a rubric, plus a sentence saying what it thought you
+   meant.
+2. **Filter.** Run in code against `src/data/profiles.json`. No model involved.
+3. **Score.** The model scores everyone who got through, against each part of the rubric, quoting
+   real fields from their profile.
+4. **Refine.** You react, and the model works out what to change and tells you why.
+5. **Freeze.** A read-only summary: the final filters, the final rubric, the ranked list, and every
+   round that got you there.
 
-The single most important decision in the build. The model's job is *translation*: turning
-"RDS developers, 4–7 years, startups, Bangalore" into a structured object. A pure function in
-`src/lib/filter.ts` decides who actually matches.
+---
 
-This buys three things. Filtering is instant and free, so the recruiter can edit a filter and watch
-the count change with no model call. It is deterministic, so the same filters always produce the same
-shortlist. And it is testable: `npm test` asserts the behaviour against the real 48 profiles, which
-you cannot do with judgement buried in a prompt.
+## Why it's built this way
 
-### Skills are matched by adjacency, in three tiers
+### The model writes the filters. Code runs them.
 
-A naive skill filter is quietly broken on this dataset:
+This is the decision everything else hangs off. The model's only job is translation: turning
+"RDS developers, 4-7 years, startups, Bangalore" into a structured object. Deciding who actually
+matches that object is a plain function in `src/lib/filter.ts`.
+
+Three reasons. It's instant and free, so you can edit a filter and watch the number change without
+waiting on anything. It's the same every time, so the same filters always give you the same people.
+And I can test it: `npm test` checks it against the real 48 profiles, which you can't do when the
+logic is buried in a prompt.
+
+### Skills are matched loosely, in three levels
+
+If you match skills by exact text, this dataset breaks straight away:
 
 ```
 "JavaScript"  → 0 exact matches, but 17 profiles list TypeScript
@@ -89,174 +93,177 @@ A naive skill filter is quietly broken on this dataset:
 "Postgres"    → 0 exact matches, but 20 profiles list PostgreSQL
 ```
 
-A recruiter typing "JavaScript engineers" would get an empty screen while 17 matches sat in the pool,
-and would never learn those people existed. That is the worst failure mode in sourcing, because it is
-invisible.
+Someone searching for JavaScript engineers gets an empty screen while 17 of them sit right there.
+And they never find out. That's the worst thing that can go wrong in sourcing, because nothing on
+screen tells you it happened.
 
-So the model expands every skill into three tiers rather than emitting a bare string:
+So instead of giving back a skill name, the model gives back three levels of it:
 
-| tier | meaning | example |
+| level | what it means | example |
 |---|---|---|
-| `direct` | the skill itself, plus spelling variants | Postgres / PostgreSQL |
-| `implied` | listing this implies the canonical skill | Kubernetes ⇒ Docker |
-| `transferable` | adjacent; days to pick up, not months | C++ ⇒ C |
+| `direct` | the skill itself, and other ways of spelling it | Postgres / PostgreSQL |
+| `implied` | if you've got this, you've got that | Kubernetes ⇒ Docker |
+| `transferable` | close enough to pick up in days, not months | C++ ⇒ C |
 
-Three consequences, each deliberate:
+Three things follow from that, all on purpose:
 
-- **The bridge is always named.** A profile matched via `implied` says *"AWS RDS via PostgreSQL"* on
-  the card. A match the recruiter cannot trace is a match they cannot trust.
-- **The expansion is editable.** Every inferred term is a removable chip. Disagree that Node.js
-  implies frontend JavaScript? Delete it; the count updates instantly, with no model call. The
-  model's guesses are proposals the recruiter audits, not hidden behaviour.
-- **Looseness is opt-in and tier-aware.** A three-way toggle controls how weak a match may be, and
-  weaker tiers carry a small ranking penalty so a transferable match never outranks a direct one at
-  equal rubric fit. Scoring prompts are told to say *"no direct Docker, but runs Kubernetes in
-  production"* rather than claim depth that is not in the record.
+- **It always tells you how it matched.** A profile matched on `implied` says *"AWS RDS via
+  PostgreSQL"* on the card. If you can't see why someone matched, you're not going to trust the list.
+- **You can edit it.** Every term the model guessed is a chip you can delete. Don't think Node.js
+  means someone can do frontend JavaScript? Take it out, and the count updates right away with no
+  model call. It's the model suggesting and you checking, not the model quietly deciding.
+- **Loose matching is opt-in.** A three-way toggle controls how weak a match is allowed to be, and
+  weaker levels get a small ranking penalty so someone who only transfers in never beats someone who
+  actually has the skill. The scoring prompt is also told to say *"no direct Docker, but runs
+  Kubernetes in production"* rather than pretend they have experience they don't.
 
-Matching itself stays conservative: exact or prefix with a six-character floor, which is what stops
-`java` matching `javascript`. Everything looser is the model's job, in a list you can see.
+The matching itself stays strict on purpose: exact, or a prefix of at least six characters, which is
+what stops `java` matching `javascript`. Anything looser than spelling is the model's job, and it
+has to show you its working.
 
-### The model scores per criterion; the browser does the weighting
+### The model scores each part separately, the browser does the maths
 
-Scoring returns a score for each rubric criterion, never a blended number. Weights are applied
-client-side, so dragging a criterion from medium to high **re-ranks the entire shortlist instantly**
-with no model call. Expensive judgement is bought once; arithmetic is free and belongs in code.
+The model gives a score per rubric criterion, never one combined number. The weights get applied in
+the browser, so dragging a criterion from medium to high **reorders the whole list immediately** with
+no model call. You pay for the judgement once, and adding up numbers is free.
 
-It also makes the ranking legible: each card shows the per-criterion bars behind its score, so the
-recruiter can see *why* it placed where it did.
+It also means you can see why someone ranked where they did, because each card shows the bars behind
+the score.
 
-### Every failure is handled in one place
+### All the failure handling is in one place
 
-All three routes go through `callModel` in `src/lib/llm.ts`, which owns:
+All three routes go through `callModel` in `src/lib/llm.ts`, which handles:
 
-- **Structured output** via Gemini's `responseJsonSchema`, generated from the zod schema, then
-  validated with that same schema. The API constrains the shape, zod is the safety net.
-- **Malformed output** goes to one repair attempt, handing the validation errors back to the model.
-- **Rate limits, timeouts, provider 503s** get exponential backoff with jitter, and a **model chain**.
-  Capacity is per-model, so backing off on a saturated model just wastes the recruiter's time; we
-  move to the next of eight verified models instead, and park the dead one so later requests skip
-  it. This was not speculative: the whole chain was genuinely exhausted during development, and the
-  chain plus the cooldown is what kept the app usable.
-- **Config errors** (bad key, missing model) are *not* retried. Retrying a rejected API key three
-  times helps nobody.
-- **Graceful degradation**. Filtering is local and cannot fail, so the score route computes it
-  *before* calling the model and returns it either way. When ranking fails the recruiter still gets
-  the funnel, the shortlist and the near-misses, unranked, with an honest banner, never a blank
-  page. This is verifiable without spending quota: `fault: "auth"` on `/api/score` returns HTTP 200
-  with the full filter result and the failure attached.
+- **Getting proper JSON back.** The zod schema is converted into Gemini's `responseJsonSchema` so the
+  API constrains the shape, then the same schema validates the response as a backstop.
+- **Broken JSON** gets one repair attempt, where the validation errors are handed back to the model.
+- **Rate limits, timeouts and 503s** get backoff with jitter, plus the model chain. Running out is a
+  per-model thing, so waiting around on a model you know is finished just wastes your time. It moves
+  to the next of eight and parks the dead one so later requests skip it. This wasn't me guessing at
+  problems: I ran the entire chain dry building this, and it's the only reason the app kept working.
+- **Config problems** like a bad key or a wrong model name are **not** retried. Asking a rejected API
+  key three times isn't going to change its mind.
+- **Losing the ranking doesn't lose the search.** Filtering happens in code and can't fail, so the
+  score route runs it *before* calling the model and returns it either way. If ranking dies you still
+  get the funnel, the matches and the near-misses, just unordered, and the app says so instead of
+  showing you a blank page. You can check this without using up any quota: send `fault: "auth"` to
+  `/api/score` and you get a 200 back with all the filter results and the error attached.
 
-Every recovery is surfaced: the UI says when it retried, and when a fallback model answered.
+Anything it recovered from gets shown. The UI tells you when it retried and when a backup model
+answered.
 
-A **dev-only fault injector** (the dropdown next to the composer) forces any of these paths on
-demand. Rate limits are real but arrive on their own schedule, which is never the moment you need to
-show they are handled.
+There's also a **fault injector** (the dropdown next to the message box, dev only) that forces any of
+these on demand. Rate limits are real, but they show up whenever they feel like it, which is never
+when you're trying to demo that you handle them.
 
-### The empty state diagnoses instead of apologising
+### When nothing matches, it tells you why
 
-Because the filter engine is code, it can answer questions a prompt cannot:
+Because the filtering is code, it can answer things a prompt can't:
 
-- A **funnel** showing where the pool went, `48 → 33 → 15 → 7 → 6`, always visible, so zero results
-  are self-explaining rather than mysterious.
-- **Relaxation search**: when nothing matches, it finds the smallest set of filters to drop. Single
-  drops first, then pairs, then a greedy fallback, because in an over-constrained search several
-  filters each independently empty the pool, and offering only single drops fails exactly when the
-  recruiter most needs help. *"Drop 12+ years and Berlin → 2 matches."*
-- A **near-miss drawer**: profiles failing exactly one criterion. The recruiter's real question is
-  rarely "who matches" but "who nearly matches, and is it worth bending?"
+- A **funnel** showing where everyone went, `48 → 33 → 15 → 7 → 6`, always on screen, so an empty
+  result explains itself.
+- **Working out what to drop.** When nothing matches, it finds the smallest change that gets you
+  moving again. It tries single filters first, then pairs, then falls back to dropping them in order
+  of damage. That matters because when a search is badly over-constrained, several filters each kill
+  it on their own, so only offering single drops leaves you stuck exactly when you needed help.
+  *"Drop 12+ years and Berlin → 2 matches."*
+- **Near misses**: people who failed exactly one filter. What you actually want to know is rarely
+  "who matches", it's "who nearly matches, and is it worth bending?"
 
-All three fall out of one list of named criteria, so they can never disagree with each other.
+All three come out of the same list of filters, so they can never contradict each other.
 
-### Refinement diagnoses rather than obeys
+### Refining works out what you meant, not just what you said
 
-`refine` is a separate prompt from `interpret` because it has a different job: return a **diff with
-reasons**, each naming the feedback that caused it: *"reduced startup_experience weight from high to
-medium because you said you care about depth of database ownership more than raw experience."*
+`refine` is a separate prompt from `interpret` because it has a different job: give back a **list of
+changes with reasons**, each pointing at the specific thing you said. *"Reduced startup_experience
+weight from high to medium because you said you care about depth of database ownership more than raw
+experience."*
 
-It is instructed to prefer adjusting the rubric over tightening a filter (filters exclude
-permanently and silently; weights only reorder), to make the smallest change the feedback justifies,
-and to return no changes at all rather than invent one to look responsive.
+It's told to lean on the rubric before tightening a filter, because a filter removes someone
+permanently and quietly while a weight just moves them down. It's told to make the smallest change
+your feedback justifies. And if your feedback doesn't justify changing anything, it's told to say so
+rather than invent something to look busy.
 
-**The change log is derived, not reported.** The model returns its own before/after strings, but
-those describe only the edits *it* made: the moment the recruiter drops a skill by hand, the model's
-account is stale and describes a search that no longer exists. So structure comes from diffing the
-real filters (`src/lib/diff.ts`) and the model contributes only the reasoning. A hand edit is
-attributed to the recruiter and shown as "Your edits", and raw JSON is never put on screen.
+**The list of changes is worked out, not taken from the model.** The model reports what it changed,
+but it never sees you edit a filter by hand, so its version goes stale the second you touch
+something. That was a real bug. Now the changes come from comparing the actual filters before and
+after (`src/lib/diff.ts`), and the model only supplies the reasoning. If you made the change
+yourself it says "Your edits" and shows what you did. No raw JSON ever ends up on screen.
 
-It also receives every previous round and flags **contradictions** instead of smoothing them over:
-*"you approved someone at 4 years in round 1 but rejected 5 years as too junior; seniority here may
-be about scope rather than years."* A tool that silently flips a filter to please whoever spoke last
-is one a recruiter stops believing.
+It also gets every previous round, so it can point out when you've **contradicted yourself** instead
+of quietly going along with it: *"you approved someone at 4 years in round 1 but rejected 5 years as
+too junior, so seniority here might be about scope rather than years."* A tool that flips a filter
+back and forth to please whoever spoke last is one you stop believing.
 
-### No persistence, stateless server
+### Nothing is saved
 
-Session state lives in React and is posted with each request. No database, no session store, no
-login. The brief rules them out, and without them there is simply less that can be wrong.
+The session lives in React and gets sent with each request. No database, no session store, no login.
+The brief ruled them out anyway, and without them there's less that can go wrong.
 
 ---
 
-## What I cut, and why
+## What I left out, and why
 
-- **Tests beyond the filter engine.** The deterministic core carries the invariants worth asserting
-  and is where a regression would be silent. UI and prompt behaviour I verified by driving the real
-  app. Given more time, snapshot tests on the schema-validation paths would come next.
-- **Profile detail views, saved searches, multi-seat, mobile layout.** Outside the flow in the brief.
-- **Streaming responses.** Nicer perceived latency, but it fights structured output and schema
+- **Tests beyond the filter engine.** That's where the important rules live and where a bug would go
+  unnoticed. The UI and the prompts I checked by actually using the app. With more time I'd add tests
+  on the schema validation paths next.
+- **Profile detail pages, saved searches, multiple users, mobile layout.** None of it is in the flow
+  the brief described.
+- **Streaming responses.** Better perceived speed, but it fights with structured output and schema
   validation, which matter more here.
-- **Scoring beyond 15 profiles per round.** Bounded for latency and token cost; past that the honest
-  answer is to tighten the filters, and the UI says how many went unscored.
-- **Pagination through the shortlist.** The recruiter reviews the top 5, gives feedback, and the loop
-  re-ranks. Paging deeper competes with refining, which is the actual product.
+- **Scoring more than 15 profiles at once.** Capped for speed and token cost. Past that the honest
+  answer is to tighten your filters, and the UI tells you how many weren't scored.
+- **Paging through the shortlist.** You look at the top 5, give feedback, and the list re-ranks.
+  Paging further down competes with refining, which is the actual point.
 
 ---
 
 ## Prompts
 
-All four live in **`src/prompts/`**, as plain readable template strings. Nothing is assembled at
-runtime and there is no prompt framework in between, so what you read in the file is what the model
-receives.
+All four are in **`src/prompts/`**, as plain readable strings. Nothing gets assembled at runtime and
+there's no prompt library in the way, so what's in the file is what the model gets.
 
 | file | used by | exports | what it does |
 |---|---|---|---|
-| [`src/prompts/shared.ts`](src/prompts/shared.ts) | all three | `SKILL_TIER_RULES`, `VOCAB_RULES`, `EVIDENCE_RULES`, `STYLE_RULES` | the rules every call inherits, kept in one place so the three cannot drift apart on the things that matter most |
-| [`src/prompts/interpret.ts`](src/prompts/interpret.ts) | `POST /api/interpret` | `INTERPRET_SYSTEM`, `interpretUser()` | free text → objective filters + subjective rubric + a plain-language readback |
-| [`src/prompts/score.ts`](src/prompts/score.ts) | `POST /api/score` | `SCORE_SYSTEM`, `scoreUser()` | rubric + matched profiles → per-criterion scores, cited evidence, a named concern each |
-| [`src/prompts/refine.ts`](src/prompts/refine.ts) | `POST /api/refine` | `REFINE_SYSTEM`, `refineUser()` | recruiter feedback → updated filters and rubric, a diff with reasons, contradiction detection |
+| [`src/prompts/shared.ts`](src/prompts/shared.ts) | all three | `SKILL_TIER_RULES`, `VOCAB_RULES`, `EVIDENCE_RULES`, `STYLE_RULES` | the rules all three calls share, in one place so they can't drift apart |
+| [`src/prompts/interpret.ts`](src/prompts/interpret.ts) | `POST /api/interpret` | `INTERPRET_SYSTEM`, `interpretUser()` | your text → filters + rubric + a readback of what it understood |
+| [`src/prompts/score.ts`](src/prompts/score.ts) | `POST /api/score` | `SCORE_SYSTEM`, `scoreUser()` | rubric + matching profiles → a score per criterion, quoted evidence, one concern each |
+| [`src/prompts/refine.ts`](src/prompts/refine.ts) | `POST /api/refine` | `REFINE_SYSTEM`, `refineUser()` | your feedback → updated filters and rubric, changes with reasons, contradictions flagged |
 
-Each file follows the same shape: a `*_SYSTEM` constant holding the instructions, and a `*User()`
-function that renders the per-request payload. The system prompts are where the judgement lives, so
-start there.
+They're all the same shape: a `*_SYSTEM` constant with the instructions, and a `*User()` function
+that builds the per-request part. The thinking is all in the system prompts, so start there.
 
-**If you only read one:** [`shared.ts`](src/prompts/shared.ts). `SKILL_TIER_RULES` is the heart of
-the product. It turns a skill name into the three-tier expansion that stops a JavaScript
-search returning zero while seventeen TypeScript engineers sit in the pool.
+**If you only read one,** read [`shared.ts`](src/prompts/shared.ts). `SKILL_TIER_RULES` is the core
+idea of the whole thing. It's what turns a skill name into three levels, which is what stops a search
+for JavaScript coming back empty while 17 TypeScript engineers sit in the pool.
 
-Four prompt decisions worth calling out:
+Four things about the prompts worth pointing out:
 
-**Skill adjacency is specified, not hoped for.** `SKILL_TIER_RULES` names the failure it exists to
-prevent, gives worked examples for each tier, and explicitly tells the model to return empty arrays
-rather than pad a tier to manufacture more results.
+**Skill matching is spelled out, not hoped for.** `SKILL_TIER_RULES` names the exact problem it
+exists to prevent, gives worked examples for each level, and specifically tells the model to return
+an empty list rather than pad one out to get more results.
 
-**The model is given the dataset's controlled vocabulary**: every skill, location, company type and
-title actually present in the pool, generated from the data in
-[`src/lib/pool.ts`](src/lib/pool.ts) and injected by `VOCAB_RULES`. Without it the model reaches for
-"Bengaluru" when the data says "Bangalore", the filter matches nobody, and the recruiter sees an
-empty screen for a reason they could never guess.
+**The model is given the actual vocabulary of the dataset**: every skill, location, company type and
+job title that really appears in the pool, pulled from the data in
+[`src/lib/pool.ts`](src/lib/pool.ts) and injected by `VOCAB_RULES`. Without it the model says
+"Bengaluru" when the data says "Bangalore", nothing matches, and you get an empty screen for a
+reason you'd never work out.
 
-**Evidence is validated, not trusted.** `EVIDENCE_RULES` lists the exact profile field names an
-explanation may cite; any invented field is dropped before render by `validEvidence` in
-[`src/lib/rank.ts`](src/lib/rank.ts). Every card also carries a named concern, because a shortlist
-where nobody has a weakness is one a recruiter stops reading.
+**Evidence gets checked, not trusted.** `EVIDENCE_RULES` lists the exact field names an explanation
+is allowed to quote, and anything made up gets dropped before it renders, by `validEvidence` in
+[`src/lib/rank.ts`](src/lib/rank.ts). Every card also has a concern on it, because a shortlist where
+nobody has a weakness is one you stop reading.
 
-**The model writes copy the recruiter reads**, so house style reaches it too. `STYLE_RULES` covers
-headlines, reasons, concerns, summaries and change explanations.
+**The model writes text you actually read**, so the writing rules reach it too. `STYLE_RULES` covers
+the headlines, reasons, concerns, summaries and change explanations.
 
-The JSON contract for every response is separate from the prose, in
-[`src/lib/schema.ts`](src/lib/schema.ts): zod types that are converted to Gemini's `responseJsonSchema`
-to constrain generation, then reused to validate what comes back.
+The JSON shape for every response is kept separate from the wording, in
+[`src/lib/schema.ts`](src/lib/schema.ts). Those zod types get converted into Gemini's
+`responseJsonSchema` to constrain what it generates, then reused to check what comes back.
 
 ---
 
-## Layout
+## Where things are
 
 ```
 src/
@@ -264,14 +271,15 @@ src/
     page.tsx              the whole flow: landing → reviewing → frozen
     api/{interpret,score,refine}/route.ts
   lib/
-    filter.ts             deterministic matching, funnel, near-misses, relaxation
-    filter.test.ts        assertions against the real 48 profiles
-    llm.ts                the one LLM boundary: schema, timeout, backoff, model chain, faults
-    rank.ts               weighting, evidence validation, tier-aware ordering
-    pool.ts               dataset + controlled vocabulary
-    schema.ts             zod types shared by client and server
-    session.ts            client session state and API calls
+    filter.ts             matching, funnel, near misses, working out what to drop
+    filter.test.ts        checks against the real 48 profiles
+    llm.ts                the one place LLM calls happen: schema, timeouts, retries, model chain
+    rank.ts               weighting, evidence checking, ordering
+    diff.ts               works out what changed between two versions of a search
+    pool.ts               the dataset and its vocabulary
+    schema.ts             zod types shared by the client and server
+    session.ts            client state and API calls
   prompts/                the four prompt files above
   components/sourcing/    filter panel, rubric panel, profile card, states, frozen view
-  data/profiles.json      the talent pool
+  data/profiles.json      the 48 profiles
 ```
