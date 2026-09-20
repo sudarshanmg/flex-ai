@@ -1,26 +1,208 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* ── Flexiple palette ───────────────────────────────────────────────────
+   * Deep forest green carries structure. Lime is reserved, strictly, for the
+   * one action the recruiter should take next. A data-dense tool that scatters
+   * a landing-page accent everywhere reads as loud rather than confident.
+   * The pastels are a categorical system, not decoration: they carry skill
+   * tiers and funnel steps, so the brand language does informational work.
+   * ─────────────────────────────────────────────────────────────────────── */
+  --forest: oklch(0.268 0.052 158);
+  --forest-soft: oklch(0.372 0.058 160);
+  --lime: oklch(0.905 0.181 117);
+  --lime-deep: oklch(0.815 0.176 118);
+  --cream: oklch(0.977 0.008 95);
+
+  --tint-mint: oklch(0.938 0.048 162);
+  --tint-sky: oklch(0.928 0.042 236);
+  --tint-butter: oklch(0.951 0.062 96);
+  --tint-peach: oklch(0.925 0.049 45);
+  --tint-lilac: oklch(0.925 0.044 296);
+
+  --background: var(--cream);
+  --foreground: oklch(0.221 0.028 158);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.221 0.028 158);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.221 0.028 158);
+  --primary: var(--forest);
+  --primary-foreground: oklch(0.985 0.012 95);
+  --secondary: oklch(0.955 0.013 150);
+  --secondary-foreground: var(--forest);
+  --muted: oklch(0.955 0.013 150);
+  --muted-foreground: oklch(0.505 0.022 155);
+  --accent: var(--lime);
+  --accent-foreground: var(--forest);
+  --destructive: oklch(0.545 0.198 27);
+  --border: oklch(0.897 0.014 150);
+  --input: oklch(0.897 0.014 150);
+  --ring: var(--forest-soft);
+  --chart-1: var(--forest);
+  --chart-2: var(--forest-soft);
+  --chart-3: oklch(0.58 0.05 160);
+  --chart-4: oklch(0.70 0.04 160);
+  --chart-5: oklch(0.82 0.03 160);
+  --radius: 0.875rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: var(--forest);
+  --sidebar-primary: var(--forest);
+  --sidebar-primary-foreground: oklch(0.985 0.012 95);
+  --sidebar-accent: oklch(0.955 0.013 150);
+  --sidebar-accent-foreground: var(--forest);
+  --sidebar-border: oklch(0.897 0.014 150);
+  --sidebar-ring: var(--forest-soft);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+@theme inline {
+  --color-forest: var(--forest);
+  --color-forest-soft: var(--forest-soft);
+  --color-lime: var(--lime);
+  --color-lime-deep: var(--lime-deep);
+  --color-cream: var(--cream);
+  --color-tint-mint: var(--tint-mint);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-butter: var(--tint-butter);
+  --color-tint-peach: var(--tint-peach);
+  --color-tint-lilac: var(--tint-lilac);
+}
+
+@layer utilities {
+  /* Numbers that change while you watch them (counts, scores, years) sit in
+     tabular figures so the row does not reflow on every update. */
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* A sweep across a placeholder reads as "working" in a way that pulsing
+     opacity does not: it has direction, so the eye tracks it. Used on the
+     loading skeletons, where the wait can be 15–40s on a busy free tier. */
+  .shimmer { position: relative; overflow: hidden; }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in oklch, var(--card), transparent 25%) 45%,
+      color-mix(in oklch, var(--card), transparent 10%) 55%,
+      transparent 100%
+    );
+    animation: shimmer 1.7s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    to { transform: translateX(100%); }
+  }
+
+  /* Indeterminate top bar. We cannot know real progress inside a model call,
+     so this reports liveness, not completion. It never fills to 100%. */
+  @keyframes progress-slide {
+    0%   { transform: translateX(-100%) scaleX(0.35); }
+    50%  { transform: translateX(15%)   scaleX(0.55); }
+    100% { transform: translateX(100%)  scaleX(0.35); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer::after { animation: none; }
+    .progress-bar { animation: none; transform: none; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  body { background: var(--cream); }
+  ::selection { background: var(--lime); color: var(--forest); }
 }
