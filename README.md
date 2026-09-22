@@ -9,9 +9,14 @@ until you're happy. Then you freeze it.
 
 Built for the Flexiple engineering challenge.
 
-**[Watch the walkthrough](https://drive.google.com/file/d/1wXWXPbBvIxF-dVNF9wnf8cwRzLYwc23S/view?usp=sharing)**
-for the whole thing: one search from typing to frozen shortlist, a round of feedback changing the
-results, and an LLM failure that doesn't break the app.
+Two videos:
+
+- **[Product walkthrough](https://drive.google.com/file/d/1wXWXPbBvIxF-dVNF9wnf8cwRzLYwc23S/view?usp=sharing)**:
+  one search from typing to frozen shortlist, a round of feedback changing the results, and an LLM
+  failure that doesn't break the app.
+- **[Code walkthrough](https://www.loom.com/share/54c6898037fd4eecb52e1ed2c7f6bb1a)**: following one
+  request through the code, from the zod contract to the filter engine, the LLM boundary and the
+  prompts.
 
 > **The prompts are in [`src/prompts/`](src/prompts/)**, four plain text files. No templating, nothing
 > built at runtime. [`shared.ts`](src/prompts/shared.ts) has the rules all three calls share, and the
